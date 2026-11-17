@@ -10,6 +10,7 @@ import type { FarmSaveData } from './persistence/SaveSystem';
 import { HUD } from './ui/HUD';
 import { AppleTree } from './world/AppleTree';
 import { Chicken } from './world/Chicken';
+import type { ChickenSnapshot } from './world/Chicken';
 import { FeedingSession } from './world/FeedingSession';
 import type { FeedTroughDefinition } from './world/FeedingSession';
 import { FeedTrough } from './world/FeedTrough';
@@ -17,6 +18,18 @@ import { Sprout } from './world/Sprout';
 import { WateringCan } from './world/WateringCan';
 
 const appContainer = document.querySelector<HTMLDivElement>('#app')!;
+
+interface ChickenDefinition {
+  id: string;
+  label: string;
+  position: THREE.Vector3;
+  troughId: string;
+}
+
+const CHICKEN_DEFINITIONS: ChickenDefinition[] = [
+  { id: 'chicken-yellow', label: '小黄', position: new THREE.Vector3(-3.05, 0, -1.45), troughId: 'left-trough' },
+  { id: 'chicken-white', label: '小白', position: new THREE.Vector3(-1.95, 0, -1.45), troughId: 'right-trough' },
+];
 
 function createChickenCoop(position: THREE.Vector3): THREE.Group {
   const coop = new THREE.Group();
@@ -79,16 +92,26 @@ async function bootstrap() {
     sceneManager.onUpdate((dt) => apple.update(dt));
   }
 
-  // --- 一个鸡舍、一只小鸡和两个可交互食槽 ---
+  // --- 一个鸡舍、两只独立小鸡和各自对应的可交互食槽 ---
   sceneManager.scene.add(createChickenCoop(new THREE.Vector3(-2.6, 0, -2.8)));
-  const chicken = new Chicken(new THREE.Vector3(-2.4, 0, -1.45), savedData?.chicken);
-  chicken.onFeedback = (message) => hud.showFeedback(message);
-  sceneManager.scene.add(chicken.object3D);
-  interactionManager.register(chicken);
+  const savedChickenSnapshots: Record<string, ChickenSnapshot | undefined> = savedData?.chickens ?? {
+    'chicken-yellow': savedData?.chicken,
+  };
+  const chickens = CHICKEN_DEFINITIONS.map((definition) => {
+    const chicken = new Chicken(
+      definition.position,
+      savedChickenSnapshots[definition.id],
+      definition.label
+    );
+    chicken.onFeedback = (message) => hud.showFeedback(message);
+    sceneManager.scene.add(chicken.object3D);
+    interactionManager.register(chicken);
+    return chicken;
+  });
 
   const troughDefinitions: FeedTroughDefinition[] = [
-    { id: 'left-trough', label: '左侧食槽' },
-    { id: 'right-trough', label: '右侧食槽' },
+    { id: 'left-trough', label: '小黄的食槽' },
+    { id: 'right-trough', label: '小白的食槽' },
   ];
   const feedingSession = new FeedingSession(resourceSystem, troughDefinitions);
   feedingSession.onFeedback = (message) => hud.showFeedback(message);
@@ -109,7 +132,14 @@ async function bootstrap() {
       onCancel: () => feedingSession.cancel(),
     });
   };
-  feedingSession.onConfirmed = (_amounts, total) => chicken.receiveConfirmedFeed(total);
+  feedingSession.onConfirmed = (amounts) => {
+    CHICKEN_DEFINITIONS.forEach((definition, index) => {
+      const portions = amounts[definition.troughId];
+      if (portions > 0) {
+        chickens[index].receiveConfirmedFeed(portions);
+      }
+    });
+  };
 
   // --- 离线示例学习任务：按任务实例 ID 去重发奖 ---
   const studyTasks = new StudyTaskSystem(resourceSystem, savedData?.learning);
@@ -124,9 +154,10 @@ async function bootstrap() {
   const updateFarmStatus = () => {
     hud.updateFarmStatus(
       carrot.getStageLabel(),
-      chicken.getSummary(),
+      chickens.map((chicken) => chicken.getSummary()).join('\n'),
       carrot.getSnapshot().harvestedCount,
-      appleTree.getSummary()
+      appleTree.getSummary(),
+      appleTree.getPickedCount()
     );
   };
 
@@ -134,7 +165,9 @@ async function bootstrap() {
     version: 1,
     resources: resourceSystem.getSnapshot(),
     carrot: carrot.getSnapshot(),
-    chicken: chicken.getSnapshot(),
+    chickens: Object.fromEntries(
+      CHICKEN_DEFINITIONS.map((definition, index) => [definition.id, chickens[index].getSnapshot()])
+    ),
     appleTree: appleTree.getSnapshot(),
     learning: studyTasks.getSnapshot(),
   });
@@ -161,10 +194,12 @@ async function bootstrap() {
     updateFarmStatus();
     requestSave();
   };
-  chicken.onStateChange = () => {
-    updateFarmStatus();
-    requestSave();
-  };
+  chickens.forEach((chicken) => {
+    chicken.onStateChange = () => {
+      updateFarmStatus();
+      requestSave();
+    };
+  });
   appleTree.onStateChange = () => {
     updateFarmStatus();
     requestSave();
@@ -193,7 +228,7 @@ async function bootstrap() {
     wateringCan,
     carrot,
     appleTree,
-    chicken,
+    chickens,
     feedingSession,
     studyTasks,
     save: () => saveSystem.save(buildSaveData()),

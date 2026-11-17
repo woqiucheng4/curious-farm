@@ -9,7 +9,9 @@ export interface FarmSaveData {
   version: 1;
   resources: ResourceSnapshot;
   carrot: CarrotSnapshot;
-  chicken: ChickenSnapshot;
+  /** 旧版 v1 存档只有一只小鸡。 */
+  chicken?: ChickenSnapshot;
+  chickens?: Record<string, ChickenSnapshot>;
   /** 旧版 v1 存档没有苹果树字段；读取时交给 AppleTree 使用默认果实。 */
   appleTree?: AppleTreeSnapshot;
   learning: LearningTaskSnapshot;
@@ -38,13 +40,21 @@ export class SaveSystem {
   }
 
   private clone(data: FarmSaveData): FarmSaveData {
-    return {
+    const snapshot: FarmSaveData = {
       version: 1,
       resources: { ...data.resources },
       carrot: { ...data.carrot },
-      chicken: { ...data.chicken },
       appleTree: { fruits: data.appleTree?.fruits.map((fruit) => ({ ...fruit })) ?? [] },
       learning: { completedTaskIds: [...data.learning.completedTaskIds] },
     };
+    if (data.chicken) {
+      snapshot.chicken = { ...data.chicken };
+    }
+    if (data.chickens) {
+      snapshot.chickens = Object.fromEntries(
+        Object.entries(data.chickens).map(([id, chicken]) => [id, { ...chicken }])
+      );
+    }
+    return snapshot;
   }
 }

@@ -66,6 +66,10 @@ export class AppleTree {
     return `成熟 ${mature} 个｜未成熟 ${unripe} 个｜已摘 ${picked} 个`;
   }
 
+  getPickedCount(): number {
+    return this.fruits.filter((fruit) => fruit.getSnapshot().picked).length;
+  }
+
   private createTree(position: THREE.Vector3): THREE.Group {
     const tree = new THREE.Group();
     tree.position.copy(position);

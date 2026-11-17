@@ -25,11 +25,13 @@ export class Chicken implements Interactable {
   private confirmedFeedPortions = 0;
   private careCycles = 0;
   private eggs = 0;
+  private readonly label: string;
   private bodyMesh: THREE.Mesh;
   private headMesh: THREE.Mesh;
   private combMesh: THREE.Mesh;
 
-  constructor(position: THREE.Vector3, snapshot?: Partial<ChickenSnapshot>) {
+  constructor(position: THREE.Vector3, snapshot?: Partial<ChickenSnapshot>, label = '小鸡') {
+    this.label = label;
     this.object3D = new THREE.Group();
     this.object3D.position.copy(position);
 
@@ -67,7 +69,7 @@ export class Chicken implements Interactable {
 
   /** 抚摸小鸡是免费互动，不推进成长也不消耗资源。 */
   onInteract() {
-    this.onFeedback('小鸡开心地“叽叽”叫了一声');
+    this.onFeedback(`${this.label}开心地“叽叽”叫了一声`);
   }
 
   /** 只能由 FeedingSession 的“确认”路径调用。 */
@@ -81,11 +83,11 @@ export class Chicken implements Interactable {
 
     if (previousStage === 'adult' && this.stage === 'adult') {
       this.eggs += 1;
-      this.onFeedback('成年母鸡完成了一轮照料，产下了一个鸡蛋！');
+      this.onFeedback(`${this.label}完成一轮照料，产下了一个鸡蛋！`);
     } else if (this.stage !== previousStage) {
-      this.onFeedback(`照料完成，小鸡成长为${this.getStageLabel()}了！`);
+      this.onFeedback(`照料完成，${this.label}成长为${this.getStageLabel()}了！`);
     } else {
-      this.onFeedback('小鸡吃得很开心，继续照料它吧');
+      this.onFeedback(`${this.label}吃得很开心，继续照料它吧`);
     }
     this.onStateChange();
   }
@@ -113,7 +115,7 @@ export class Chicken implements Interactable {
   }
 
   getSummary(): string {
-    return `${this.getStageLabel()}｜已喂 ${this.confirmedFeedPortions} 份｜照料 ${this.careCycles} 次｜鸡蛋 ${this.eggs} 枚`;
+    return `${this.label}：${this.getStageLabel()}｜已喂 ${this.confirmedFeedPortions} 份｜照料 ${this.careCycles} 次｜鸡蛋 ${this.eggs} 枚`;
   }
 
   /** 读档保持当时阶段，不根据离线时长改变成长或健康状态。 */

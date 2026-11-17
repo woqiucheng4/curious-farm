@@ -110,9 +110,10 @@ export class HUD {
     carrotStage: string,
     chickenSummary: string,
     harvestedCarrots: number,
-    appleSummary: string
+    appleSummary: string,
+    basketApples: number
   ) {
-    this.farmStatusLabel.textContent = `农场进度\n胡萝卜：${carrotStage}\n苹果树：${appleSummary}\n小鸡：${chickenSummary}\n收获：胡萝卜 ${harvestedCarrots} 根`;
+    this.farmStatusLabel.textContent = `农场进度\n胡萝卜：${carrotStage}\n苹果树：${appleSummary}\n果篮：苹果 ${basketApples} 个\n小鸡：${chickenSummary}\n收获：胡萝卜 ${harvestedCarrots} 根`;
   }
 
   showFeedConfirmation(
