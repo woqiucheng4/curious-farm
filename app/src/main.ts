@@ -5,6 +5,7 @@ import { SceneManager } from './core/SceneManager';
 import { ResourceSystem } from './economy/ResourceSystem';
 import { InteractionManager } from './interaction/InteractionManager';
 import { StudyTaskSystem } from './learning/StudyTaskSystem';
+import { LEARNING_TASKS } from './learning/taskData';
 import { SaveSystem } from './persistence/SaveSystem';
 import type { FarmSaveData } from './persistence/SaveSystem';
 import { HUD } from './ui/HUD';
@@ -141,11 +142,20 @@ async function bootstrap() {
     });
   };
 
-  // --- 离线示例学习任务：按任务实例 ID 去重发奖 ---
+  // --- 数据驱动的离线学习任务：按任务实例 ID 去重发奖 ---
   const studyTasks = new StudyTaskSystem(resourceSystem, savedData?.learning);
   studyTasks.onFeedback = (message) => hud.showFeedback(message);
-  hud.setTaskHandler(() => studyTasks.completeSampleTask());
-  hud.setTaskCompleted(studyTasks.hasCompletedSampleTask());
+  const updateLearningTaskUI = () => {
+    hud.updateLearningTaskProgress(
+      studyTasks.getSnapshot().completedTaskIds,
+      studyTasks.getEvidenceSummaries()
+    );
+  };
+  hud.setLearningTasks(LEARNING_TASKS, {
+    onAnswer: (taskInstanceId, optionId) => studyTasks.submitAnswer(taskInstanceId, optionId),
+    onCancel: () => studyTasks.cancelCurrentAnswer(),
+  });
+  updateLearningTaskUI();
   hud.setCarrotCareHandlers(
     () => carrot.applySunlightCare(),
     () => carrot.applyFertilizerCare()
@@ -205,7 +215,7 @@ async function bootstrap() {
     requestSave();
   };
   studyTasks.onStateChange = () => {
-    hud.setTaskCompleted(studyTasks.hasCompletedSampleTask());
+    updateLearningTaskUI();
     requestSave();
   };
 

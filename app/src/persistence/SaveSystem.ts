@@ -45,7 +45,10 @@ export class SaveSystem {
       resources: { ...data.resources },
       carrot: { ...data.carrot },
       appleTree: { fruits: data.appleTree?.fruits.map((fruit) => ({ ...fruit })) ?? [] },
-      learning: { completedTaskIds: [...data.learning.completedTaskIds] },
+      learning: {
+        completedTaskIds: [...data.learning.completedTaskIds],
+        learningEvents: data.learning.learningEvents?.map((event) => ({ ...event })) ?? [],
+      },
     };
     if (data.chicken) {
       snapshot.chicken = { ...data.chicken };

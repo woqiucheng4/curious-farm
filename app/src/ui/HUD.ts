@@ -1,9 +1,16 @@
 import { ResourceSystem } from '../economy/ResourceSystem';
+import type { KnowledgeEvidenceSummary } from '../learning/LearningRecordInterpreter';
+import type { LearningTaskDefinition } from '../learning/taskData';
 import type { FeedingAllocationState, FeedTroughDefinition } from '../world/FeedingSession';
 
 interface FeedPanelHandlers {
   onRemove: (troughId: string) => void;
   onConfirm: () => void;
+  onCancel: () => void;
+}
+
+interface LearningTaskHandlers {
+  onAnswer: (taskInstanceId: string, optionId: string) => void;
   onCancel: () => void;
 }
 
@@ -15,14 +22,18 @@ export class HUD {
   private feedbackLabel: HTMLDivElement;
   private feedbackTimeout: number | null = null;
 
-  private taskButton: HTMLButtonElement;
+  private taskContent: HTMLDivElement;
   private sunlightCareButton: HTMLButtonElement;
   private fertilizerCareButton: HTMLButtonElement;
   private feedPanel: HTMLElement;
   private feedRows: HTMLDivElement;
   private feedTotal: HTMLDivElement;
 
-  private onTaskClick: () => void = () => {};
+  private learningTasks: LearningTaskDefinition[] = [];
+  private completedTaskIds = new Set<string>();
+  private evidenceSummaries: KnowledgeEvidenceSummary[] = [];
+  private onTaskAnswer: (taskInstanceId: string, optionId: string) => void = () => {};
+  private onTaskCancel: () => void = () => {};
   private onSunlightCare: () => void = () => {};
   private onFertilizerCare: () => void = () => {};
 
@@ -44,13 +55,12 @@ export class HUD {
     const taskCard = document.createElement('section');
     taskCard.className = 'hud-card hud-task-card';
     const taskTitle = document.createElement('strong');
-    taskTitle.textContent = '示例学习任务：平均分饲料';
+    taskTitle.textContent = '离线学习任务';
     const taskDescription = document.createElement('p');
-    taskDescription.textContent = '完成一次，领取水、阳光、肥料和 6 份饲料。任务实例只能领取一次。';
-    this.taskButton = document.createElement('button');
-    this.taskButton.type = 'button';
-    this.taskButton.addEventListener('click', () => this.onTaskClick());
-    taskCard.append(taskTitle, taskDescription, this.taskButton);
+    taskDescription.textContent = '每题独立结算一次；答错或暂不作答不会扣资源，也不会写入学习记录。';
+    this.taskContent = document.createElement('div');
+    this.taskContent.className = 'learning-task-content';
+    taskCard.append(taskTitle, taskDescription, this.taskContent);
     this.root.appendChild(taskCard);
 
     const careCard = document.createElement('section');
@@ -93,12 +103,20 @@ export class HUD {
     resourceSystem.subscribe(() => this.updateResourceLabel());
   }
 
-  setTaskHandler(handler: () => void) {
-    this.onTaskClick = handler;
+  setLearningTasks(tasks: LearningTaskDefinition[], handlers: LearningTaskHandlers) {
+    this.learningTasks = [...tasks];
+    this.onTaskAnswer = handlers.onAnswer;
+    this.onTaskCancel = handlers.onCancel;
+    this.renderLearningTasks();
   }
 
-  setTaskCompleted(completed: boolean) {
-    this.taskButton.textContent = completed ? '已领取本任务奖励' : '完成示例任务并领取奖励';
+  updateLearningTaskProgress(
+    completedTaskIds: Iterable<string>,
+    evidenceSummaries: KnowledgeEvidenceSummary[]
+  ) {
+    this.completedTaskIds = new Set(completedTaskIds);
+    this.evidenceSummaries = [...evidenceSummaries];
+    this.renderLearningTasks();
   }
 
   setCarrotCareHandlers(onSunlightCare: () => void, onFertilizerCare: () => void) {
@@ -168,6 +186,56 @@ export class HUD {
     const actionRows = this.feedPanel.querySelectorAll('.feed-actions');
     for (const actionRow of actionRows) {
       actionRow.remove();
+    }
+  }
+
+  private renderLearningTasks() {
+    this.taskContent.replaceChildren();
+
+    const evidenceTitle = document.createElement('strong');
+    evidenceTitle.className = 'learning-evidence-title';
+    evidenceTitle.textContent = '学习证据（离线规则解读）';
+    this.taskContent.appendChild(evidenceTitle);
+    for (const summary of this.evidenceSummaries) {
+      const evidence = document.createElement('p');
+      evidence.className = 'learning-evidence';
+      evidence.textContent = `${summary.subjectLabel}·${summary.knowledgePointName}：${summary.label}（${summary.completedTaskCount} 题）`;
+      this.taskContent.appendChild(evidence);
+    }
+
+    for (const task of this.learningTasks) {
+      const taskItem = document.createElement('section');
+      taskItem.className = 'learning-task-item';
+      const title = document.createElement('strong');
+      const formatLabel = task.format === 'basic' ? '基础题' : '迁移题';
+      title.textContent = `${task.title}（${formatLabel}）`;
+      const prompt = document.createElement('p');
+      prompt.textContent = task.prompt;
+      taskItem.append(title, prompt);
+
+      if (this.completedTaskIds.has(task.instanceId)) {
+        const completed = document.createElement('span');
+        completed.className = 'learning-task-completed';
+        completed.textContent = '已完成并领取奖励';
+        taskItem.appendChild(completed);
+      } else {
+        const options = document.createElement('div');
+        options.className = 'learning-task-options';
+        for (const option of task.options) {
+          const optionButton = document.createElement('button');
+          optionButton.type = 'button';
+          optionButton.textContent = option.text;
+          optionButton.addEventListener('click', () => this.onTaskAnswer(task.instanceId, option.id));
+          options.appendChild(optionButton);
+        }
+        const cancelButton = document.createElement('button');
+        cancelButton.type = 'button';
+        cancelButton.className = 'secondary-button learning-task-cancel';
+        cancelButton.textContent = '暂不作答（不记录）';
+        cancelButton.addEventListener('click', () => this.onTaskCancel());
+        taskItem.append(options, cancelButton);
+      }
+      this.taskContent.appendChild(taskItem);
     }
   }
 
