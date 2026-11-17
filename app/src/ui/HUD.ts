@@ -106,8 +106,13 @@ export class HUD {
     this.onFertilizerCare = onFertilizerCare;
   }
 
-  updateFarmStatus(carrotStage: string, chickenSummary: string, harvestedCarrots: number) {
-    this.farmStatusLabel.textContent = `农场进度\n胡萝卜：${carrotStage}\n小鸡：${chickenSummary}\n收获：胡萝卜 ${harvestedCarrots} 根`;
+  updateFarmStatus(
+    carrotStage: string,
+    chickenSummary: string,
+    harvestedCarrots: number,
+    appleSummary: string
+  ) {
+    this.farmStatusLabel.textContent = `农场进度\n胡萝卜：${carrotStage}\n苹果树：${appleSummary}\n小鸡：${chickenSummary}\n收获：胡萝卜 ${harvestedCarrots} 根`;
   }
 
   showFeedConfirmation(

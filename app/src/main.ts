@@ -8,6 +8,7 @@ import { StudyTaskSystem } from './learning/StudyTaskSystem';
 import { SaveSystem } from './persistence/SaveSystem';
 import type { FarmSaveData } from './persistence/SaveSystem';
 import { HUD } from './ui/HUD';
+import { AppleTree } from './world/AppleTree';
 import { Chicken } from './world/Chicken';
 import { FeedingSession } from './world/FeedingSession';
 import type { FeedTroughDefinition } from './world/FeedingSession';
@@ -68,6 +69,16 @@ async function bootstrap() {
   interactionManager.register(carrot);
   sceneManager.onUpdate((dt) => carrot.update(dt));
 
+  // --- 苹果树保留在原处；每个苹果独立注册，成熟度和采摘状态互不影响。 ---
+  const appleTree = new AppleTree(new THREE.Vector3(4, 0, -3.2), savedData?.appleTree);
+  appleTree.onFeedback = (message) => hud.showFeedback(message);
+  sceneManager.scene.add(appleTree.object3D);
+  for (const apple of appleTree.fruits) {
+    sceneManager.scene.add(apple.object3D);
+    interactionManager.register(apple);
+    sceneManager.onUpdate((dt) => apple.update(dt));
+  }
+
   // --- 一个鸡舍、一只小鸡和两个可交互食槽 ---
   sceneManager.scene.add(createChickenCoop(new THREE.Vector3(-2.6, 0, -2.8)));
   const chicken = new Chicken(new THREE.Vector3(-2.4, 0, -1.45), savedData?.chicken);
@@ -111,7 +122,12 @@ async function bootstrap() {
   );
 
   const updateFarmStatus = () => {
-    hud.updateFarmStatus(carrot.getStageLabel(), chicken.getSummary(), carrot.getSnapshot().harvestedCount);
+    hud.updateFarmStatus(
+      carrot.getStageLabel(),
+      chicken.getSummary(),
+      carrot.getSnapshot().harvestedCount,
+      appleTree.getSummary()
+    );
   };
 
   const buildSaveData = (): FarmSaveData => ({
@@ -119,6 +135,7 @@ async function bootstrap() {
     resources: resourceSystem.getSnapshot(),
     carrot: carrot.getSnapshot(),
     chicken: chicken.getSnapshot(),
+    appleTree: appleTree.getSnapshot(),
     learning: studyTasks.getSnapshot(),
   });
 
@@ -148,6 +165,10 @@ async function bootstrap() {
     updateFarmStatus();
     requestSave();
   };
+  appleTree.onStateChange = () => {
+    updateFarmStatus();
+    requestSave();
+  };
   studyTasks.onStateChange = () => {
     hud.setTaskCompleted(studyTasks.hasCompletedSampleTask());
     requestSave();
@@ -171,6 +192,7 @@ async function bootstrap() {
     resourceSystem,
     wateringCan,
     carrot,
+    appleTree,
     chicken,
     feedingSession,
     studyTasks,

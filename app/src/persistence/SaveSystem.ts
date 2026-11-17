@@ -3,12 +3,15 @@ import type { ResourceSnapshot } from '../economy/ResourceSystem';
 import type { LearningTaskSnapshot } from '../learning/StudyTaskSystem';
 import type { CarrotSnapshot } from '../world/Sprout';
 import type { ChickenSnapshot } from '../world/Chicken';
+import type { AppleTreeSnapshot } from '../world/AppleTree';
 
 export interface FarmSaveData {
   version: 1;
   resources: ResourceSnapshot;
   carrot: CarrotSnapshot;
   chicken: ChickenSnapshot;
+  /** 旧版 v1 存档没有苹果树字段；读取时交给 AppleTree 使用默认果实。 */
+  appleTree?: AppleTreeSnapshot;
   learning: LearningTaskSnapshot;
 }
 
@@ -40,6 +43,7 @@ export class SaveSystem {
       resources: { ...data.resources },
       carrot: { ...data.carrot },
       chicken: { ...data.chicken },
+      appleTree: { fruits: data.appleTree?.fruits.map((fruit) => ({ ...fruit })) ?? [] },
       learning: { completedTaskIds: [...data.learning.completedTaskIds] },
     };
   }
