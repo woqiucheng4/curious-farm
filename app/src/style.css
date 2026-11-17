@@ -26,17 +26,111 @@ canvas {
   pointer-events: none; /* 让鼠标事件穿透到下面的 3D 画面，HUD 本身不拦截点击 */
 }
 
-.hud-resource {
+.hud-card {
   position: absolute;
-  top: 16px;
-  left: 16px;
-  padding: 8px 16px;
+  padding: 12px 14px;
   background: rgba(255, 255, 255, 0.85);
-  border-radius: 999px;
-  font-size: 18px;
-  font-weight: 600;
+  border-radius: 12px;
+  font-size: 14px;
   color: #2d5016;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  pointer-events: auto;
+}
+
+.hud-resource {
+  top: 16px;
+  left: 16px;
+  white-space: pre-line;
+  line-height: 1.55;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.hud-farm-status {
+  top: 16px;
+  left: 190px;
+  max-width: 310px;
+  white-space: pre-line;
+  line-height: 1.5;
+}
+
+.hud-task-card {
+  top: 170px;
+  left: 16px;
+  width: 250px;
+}
+
+.hud-care-card {
+  top: 16px;
+  right: 16px;
+  width: 240px;
+}
+
+.hud-card p {
+  margin: 6px 0 10px;
+  line-height: 1.4;
+  font-size: 12px;
+  color: #4d613c;
+}
+
+button {
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #4d8f3a;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: #3c762e;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.hud-care-card button + button {
+  margin-left: 6px;
+}
+
+.hud-feed-panel {
+  top: 50%;
+  left: 50%;
+  width: min(360px, calc(100vw - 48px));
+  transform: translate(-50%, -50%);
+  padding: 18px;
+  color: #2d5016;
+}
+
+.feed-rows {
+  display: grid;
+  gap: 8px;
+}
+
+.feed-row,
+.feed-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.feed-row button {
+  background: #8a6037;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
+.feed-total {
+  margin: 12px 0;
+  font-weight: 700;
+}
+
+.secondary-button {
+  background: #6d747b;
 }
 
 .hud-feedback {

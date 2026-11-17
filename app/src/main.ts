@@ -1,50 +1,181 @@
 import * as THREE from 'three';
 import './style.css';
-import { SceneManager } from './core/SceneManager';
 import { PlayerController } from './core/PlayerController';
-import { InteractionManager } from './interaction/InteractionManager';
+import { SceneManager } from './core/SceneManager';
 import { ResourceSystem } from './economy/ResourceSystem';
-import { Sprout } from './world/Sprout';
+import { InteractionManager } from './interaction/InteractionManager';
+import { StudyTaskSystem } from './learning/StudyTaskSystem';
+import { SaveSystem } from './persistence/SaveSystem';
+import type { FarmSaveData } from './persistence/SaveSystem';
 import { HUD } from './ui/HUD';
-
-/**
- * main.ts 是整个游戏的“装配车间”：把前面写好的各个零件（场景、角色、
- * 资源、HUD、交互系统）拿出来，按顺序创建、互相连接起来。
- *
- * 新手提示：读代码时建议按这个顺序理解——
- *   1. 先有 SceneManager（有地方可以放东西了）
- *   2. 再有 PlayerController（有角色可以动了）
- *   3. 再有 ResourceSystem（有资源数值可以用了）
- *   4. 再有具体的场景物体，比如 Sprout（有东西可以互动了）
- *   5. 最后用 InteractionManager 把“点击”和“物体”串起来
- */
+import { Chicken } from './world/Chicken';
+import { FeedingSession } from './world/FeedingSession';
+import type { FeedTroughDefinition } from './world/FeedingSession';
+import { FeedTrough } from './world/FeedTrough';
+import { Sprout } from './world/Sprout';
+import { WateringCan } from './world/WateringCan';
 
 const appContainer = document.querySelector<HTMLDivElement>('#app')!;
 
-const sceneManager = new SceneManager(appContainer);
-const playerController = new PlayerController(sceneManager);
-const resourceSystem = new ResourceSystem();
-const hud = new HUD(resourceSystem);
-const interactionManager = new InteractionManager(sceneManager, playerController);
+function createChickenCoop(position: THREE.Vector3): THREE.Group {
+  const coop = new THREE.Group();
+  coop.position.copy(position);
 
-// 把 InteractionManager 和 Sprout 的提示信息都接到 HUD 上显示
-interactionManager.onFeedback = (message) => hud.showFeedback(message);
+  const wallMaterial = new THREE.MeshStandardMaterial({ color: 0xc58952 });
+  const roofMaterial = new THREE.MeshStandardMaterial({ color: 0x9b4238 });
+  const base = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1.25, 1.8), wallMaterial);
+  base.position.y = 0.63;
+  coop.add(base);
 
-// --- 放置一株幼苗作为演示 ---
-const sprout = new Sprout(new THREE.Vector3(2, 0, -1), resourceSystem);
-sprout.onFeedback = (message) => hud.showFeedback(message);
-sceneManager.scene.add(sprout.object3D);
-interactionManager.register(sprout);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(1.7, 0.85, 4), roofMaterial);
+  roof.rotation.y = Math.PI / 4;
+  roof.position.y = 1.67;
+  coop.add(roof);
 
-sceneManager.onUpdate((dt) => sprout.update(dt));
+  const doorway = new THREE.Mesh(
+    new THREE.BoxGeometry(0.55, 0.75, 0.05),
+    new THREE.MeshStandardMaterial({ color: 0x5c3927 })
+  );
+  doorway.position.set(0, 0.38, 0.93);
+  coop.add(doorway);
+  return coop;
+}
 
-sceneManager.start();
+async function bootstrap() {
+  const saveSystem = new SaveSystem();
+  const savedData = await saveSystem.load();
 
-// 调试钩子：开发时可以在浏览器控制台里输入 __debugGame.resourceSystem.water
-// 之类的语句查看内部状态，方便排查问题。正式发布前可以按需移除。
-(window as unknown as { __debugGame: unknown }).__debugGame = {
-  sceneManager,
-  playerController,
-  resourceSystem,
-  sprout,
-};
+  const sceneManager = new SceneManager(appContainer);
+  const playerController = new PlayerController(sceneManager);
+  const resourceSystem = new ResourceSystem(savedData?.resources);
+  const hud = new HUD(resourceSystem);
+  const interactionManager = new InteractionManager(sceneManager, playerController);
+
+  interactionManager.onFeedback = (message) => hud.showFeedback(message);
+
+  // --- 可拿取工具 ---
+  const wateringCan = new WateringCan(new THREE.Vector3(-1.8, 0, 1.4));
+  wateringCan.onFeedback = (message) => hud.showFeedback(message);
+  sceneManager.scene.add(wateringCan.object3D);
+  interactionManager.register(wateringCan);
+  // 水壶跟随角色的逻辑必须在每帧更新里运行，偏移会随角色朝向旋转。
+  sceneManager.onUpdate((dt) => wateringCan.update(dt, playerController));
+
+  // --- 胡萝卜：种子 → 发芽 → 长叶 → 可收获 ---
+  const carrot = new Sprout(new THREE.Vector3(2, 0, -1), resourceSystem, savedData?.carrot);
+  carrot.onFeedback = (message) => hud.showFeedback(message);
+  sceneManager.scene.add(carrot.object3D);
+  interactionManager.register(carrot);
+  sceneManager.onUpdate((dt) => carrot.update(dt));
+
+  // --- 一个鸡舍、一只小鸡和两个可交互食槽 ---
+  sceneManager.scene.add(createChickenCoop(new THREE.Vector3(-2.6, 0, -2.8)));
+  const chicken = new Chicken(new THREE.Vector3(-2.4, 0, -1.45), savedData?.chicken);
+  chicken.onFeedback = (message) => hud.showFeedback(message);
+  sceneManager.scene.add(chicken.object3D);
+  interactionManager.register(chicken);
+
+  const troughDefinitions: FeedTroughDefinition[] = [
+    { id: 'left-trough', label: '左侧食槽' },
+    { id: 'right-trough', label: '右侧食槽' },
+  ];
+  const feedingSession = new FeedingSession(resourceSystem, troughDefinitions);
+  feedingSession.onFeedback = (message) => hud.showFeedback(message);
+  const troughs = [
+    new FeedTrough('left-trough', new THREE.Vector3(-3.1, 0, -0.7), feedingSession),
+    new FeedTrough('right-trough', new THREE.Vector3(-1.9, 0, -0.7), feedingSession),
+  ];
+  for (const trough of troughs) {
+    sceneManager.scene.add(trough.object3D);
+    interactionManager.register(trough);
+  }
+
+  feedingSession.onPendingChanged = (state) => {
+    troughs.forEach((trough, index) => trough.setPendingAmount(state.amounts[troughDefinitions[index].id]));
+    hud.showFeedConfirmation(state, troughDefinitions, {
+      onRemove: (troughId) => feedingSession.removePortion(troughId),
+      onConfirm: () => feedingSession.confirm(),
+      onCancel: () => feedingSession.cancel(),
+    });
+  };
+  feedingSession.onConfirmed = (_amounts, total) => chicken.receiveConfirmedFeed(total);
+
+  // --- 离线示例学习任务：按任务实例 ID 去重发奖 ---
+  const studyTasks = new StudyTaskSystem(resourceSystem, savedData?.learning);
+  studyTasks.onFeedback = (message) => hud.showFeedback(message);
+  hud.setTaskHandler(() => studyTasks.completeSampleTask());
+  hud.setTaskCompleted(studyTasks.hasCompletedSampleTask());
+  hud.setCarrotCareHandlers(
+    () => carrot.applySunlightCare(),
+    () => carrot.applyFertilizerCare()
+  );
+
+  const updateFarmStatus = () => {
+    hud.updateFarmStatus(carrot.getStageLabel(), chicken.getSummary(), carrot.getSnapshot().harvestedCount);
+  };
+
+  const buildSaveData = (): FarmSaveData => ({
+    version: 1,
+    resources: resourceSystem.getSnapshot(),
+    carrot: carrot.getSnapshot(),
+    chicken: chicken.getSnapshot(),
+    learning: studyTasks.getSnapshot(),
+  });
+
+  // 资源通知发生在动作更新过程中；排到 microtask 后再取快照，能记录同一帧最新状态。
+  let saveQueued = false;
+  const requestSave = () => {
+    if (saveQueued) return;
+    saveQueued = true;
+    queueMicrotask(() => {
+      saveQueued = false;
+      void saveSystem.save(buildSaveData()).catch(() => {
+        hud.showFeedback('存档暂时写入失败，当前进度仍保留在本页');
+      });
+    });
+  };
+
+  resourceSystem.subscribe(requestSave);
+  carrot.onStateChange = () => {
+    updateFarmStatus();
+    requestSave();
+  };
+  carrot.onHarvest = () => {
+    updateFarmStatus();
+    requestSave();
+  };
+  chicken.onStateChange = () => {
+    updateFarmStatus();
+    requestSave();
+  };
+  studyTasks.onStateChange = () => {
+    hud.setTaskCompleted(studyTasks.hasCompletedSampleTask());
+    requestSave();
+  };
+
+  window.addEventListener('pagehide', () => {
+    void saveSystem.save(buildSaveData());
+  });
+
+  updateFarmStatus();
+  if (savedData) {
+    hud.showFeedback('已恢复离线农场进度');
+  }
+
+  sceneManager.start();
+
+  // 开发期调试钩子：可查看实时状态、显式保存或重复触发任务去重验证。
+  (window as unknown as { __debugGame: unknown }).__debugGame = {
+    sceneManager,
+    playerController,
+    resourceSystem,
+    wateringCan,
+    carrot,
+    chicken,
+    feedingSession,
+    studyTasks,
+    save: () => saveSystem.save(buildSaveData()),
+  };
+}
+
+void bootstrap();
